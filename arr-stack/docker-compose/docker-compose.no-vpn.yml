@@ -1,0 +1,91 @@
+version: "3"
+
+# adapted from https://github.com/JamesTurland/JimsGarage/blob/main/Torrent-VPN/docker-compose.yml
+services:
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent
+    container_name: qbittorrent
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Toronto
+      - WEBUI_PORT=8085
+    ports:
+      - 8085:8085
+    volumes:
+      - /home/docker/qbittorrent:/config
+      - /home/docker/qbittorrent/downloads:/downloads
+    restart: always
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    ports:
+      - 8989:8989
+    volumes:
+      - /home/docker/sonarr/data:/config
+      - /mnt/media/tvseries:/tv
+      - /home/docker/qbittorrent/downloads:/downloads
+    restart: unless-stopped
+
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    container_name: lidarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    ports:
+      - 8686:8686
+    volumes:
+      - /home/docker/lidarr/config:/config
+      - /mnt/media/music:/music #optional
+      - /home/docker/qbittorrent/downloads:/downloads
+    restart: unless-stopped
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    ports:
+      - 7878:7878
+    volumes:
+      - /home/docker/radarr/data:/config
+      - /mnt/media/movies:/movies #optional
+      - /home/docker/qbittorrent/downloads:/downloads
+    restart: unless-stopped
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    ports:
+      - 9696:9696
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - /home/docker/prowlarr/data:/config
+    restart: unless-stopped
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - /home/docker/bazarr/config:/config
+      - /mnt/media/movies:/movies
+      - /mnt/media/tvseries:/tv
+    ports:
+      - 6767:6767
+    restart: unless-stopped

@@ -1,0 +1,107 @@
+version: "3"
+
+# adapted from https://github.com/JamesTurland/JimsGarage/blob/main/Torrent-VPN/docker-compose.yml
+services:
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    # Hostname to use for container, required in some instances for the rest of the stack to each other endpoints 
+    hostname: gluetun
+    # line above must be uncommented to allow external containers to connect.
+    # See https://github.com/qdm12/gluetun-wiki/blob/main/setup/connect-a-container-to-gluetun.md#external-container-to-gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 6881:6881
+      - 6881:6881/udp
+      - 8085:8085 # qbittorrent
+      - 8989:8989 # Sonarr - TV
+      - 8686:8686 # Lidarr - Music
+      - 7878:7878 # Radarr - Movies
+      - 9696:9696 # Prowlarr - Indexers
+    volumes:
+      - /home/docker/gluetun:/gluetun
+    environment:
+      # See https://github.com/qdm12/gluetun-wiki/blob/main/setup/providers/protonvpn.md
+      - VPN_SERVICE_PROVIDER=protonvpn
+      - VPN_TYPE=wireguard
+      # Wireguard:
+      - WIREGUARD_PRIVATE_KEY=<REPLACE_ME>
+      - WIREGUARD_ADDRESSES=<REPLACE_ME>
+      # Timezone for accurate log times
+      - TZ=America/Toronto
+      # Server list updater
+      # See https://github.com/qdm12/gluetun-wiki/blob/main/setup/servers.md#update-the-vpn-servers-list
+      - UPDATER_PERIOD=24h
+ 
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent
+    container_name: qbittorrent
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Toronto
+      - WEBUI_PORT=8085
+    volumes:
+      - /home/docker/qbittorrent:/config
+      - /home/docker/qbittorrent/downloads:/downloads
+    depends_on:
+      - gluetun
+    restart: always
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - /home/docker/sonarr/data:/config
+      - /home/docker/qbittorrent/downloads:/downloads	# needs to access qbittorrent download folder to move to /tv
+      - /mnt/media/tvseries:/tv 	# mounted from host to share with plex
+    restart: unless-stopped
+    
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    container_name: lidarr
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - /home/docker/lidarr/config:/config
+      - /mnt/media/music:/music
+      - /home/docker/qbittorrent/downloads:/downloads
+    restart: unless-stopped
+    
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - /home/docker/radarr/data:/config
+      - /mnt/media/movies:/movies
+      - /home/docker/qbittorrent/downloads:/downloads
+    restart: unless-stopped
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - /home/docker/prowlarr/data:/config
+    restart: unless-stopped
