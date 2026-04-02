@@ -2,90 +2,109 @@ version: "3"
 
 # adapted from https://github.com/JamesTurland/JimsGarage/blob/main/Torrent-VPN/docker-compose.yml
 services:
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    # Hostname to use for container, required in some instances for the rest of the stack to each other endpoints 
+    hostname: gluetun
+    # line above must be uncommented to allow external containers to connect.
+    # See https://github.com/qdm12/gluetun-wiki/blob/main/setup/connect-a-container-to-gluetun.md#external-container-to-gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 6881:6881
+      - 6881:6881/udp
+      - 8085:8085 # qbittorrent
+      - 8989:8989 # Sonarr - TV
+      - 8686:8686 # Lidarr - Music
+      - 7878:7878 # Radarr - Movies
+      - 9696:9696 # Prowlarr - Indexers
+    volumes:
+      - /home/docker/gluetun:/gluetun
+    environment:
+      # See https://github.com/qdm12/gluetun-wiki/blob/main/setup/providers/protonvpn.md
+      - VPN_SERVICE_PROVIDER=protonvpn
+      - VPN_TYPE=wireguard
+      # Wireguard:
+      - WIREGUARD_PRIVATE_KEY=aL2Bn5pRrlfP5IhmBCCxK/nPBj9/CQnuclVlmuWXq14=
+      - WIREGUARD_ADDRESSES=10.2.0.2/32
+      # Timezone for accurate log times
+      - TZ=America/Toronto
+      # Server list updater
+      # See https://github.com/qdm12/gluetun-wiki/blob/main/setup/servers.md#update-the-vpn-servers-list
+      - UPDATER_PERIOD=24h
+      #- FIREWALL=on
+      #- FIREWALL_INPUT_PORTS=8085,6881,8989,8686,7878,9696
+      #- FIREWALL_OUTBOUND_SUBNETS=192.168.100.0/24
+ 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent
     container_name: qbittorrent
+    network_mode: "service:gluetun"
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=America/Toronto
       - WEBUI_PORT=8085
-    ports:
-      - 8085:8085
     volumes:
       - /home/docker/qbittorrent:/config
       - /home/docker/qbittorrent/downloads:/downloads
+    depends_on:
+      - gluetun
     restart: always
 
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
     container_name: sonarr
+    network_mode: "service:gluetun"
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Etc/UTC
-    ports:
-      - 8989:8989
     volumes:
       - /home/docker/sonarr/data:/config
-      - /mnt/media/tvseries:/tv
-      - /home/docker/qbittorrent/downloads:/downloads
+      - /mnt/media/tvseries:/tv #optional
+      - /home/docker/sonarr/downloadclient-downloads:/downloads #optional
     restart: unless-stopped
-
+    
   lidarr:
     image: lscr.io/linuxserver/lidarr:latest
     container_name: lidarr
+    network_mode: "service:gluetun"
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Etc/UTC
-    ports:
-      - 8686:8686
     volumes:
       - /home/docker/lidarr/config:/config
       - /mnt/media/music:/music #optional
-      - /home/docker/qbittorrent/downloads:/downloads
+      - /home/docker/downloads:/downloads #optional
     restart: unless-stopped
-
+    
   radarr:
     image: lscr.io/linuxserver/radarr:latest
     container_name: radarr
+    network_mode: "service:gluetun"
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Etc/UTC
-    ports:
-      - 7878:7878
     volumes:
       - /home/docker/radarr/data:/config
       - /mnt/media/movies:/movies #optional
-      - /home/docker/qbittorrent/downloads:/downloads
+      - /home/docker/download-client-downloads:/downloads #optional
     restart: unless-stopped
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
-    ports:
-      - 9696:9696
+    network_mode: "service:gluetun"
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Etc/UTC
     volumes:
       - /home/docker/prowlarr/data:/config
-    restart: unless-stopped
-
-  bazarr:
-    image: lscr.io/linuxserver/bazarr:latest
-    container_name: bazarr
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Etc/UTC
-    volumes:
-      - /home/docker/bazarr/config:/config
-      - /mnt/media/movies:/movies
-      - /mnt/media/tvseries:/tv
-    ports:
-      - 6767:6767
     restart: unless-stopped
